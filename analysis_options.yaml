@@ -1,0 +1,10 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # IconData with runtime codePoint is intentional for dynamic icons stored in DB
+    non_const_argument_for_const_parameter: ignore
+
+linter:
+  rules:
+    avoid_print: false
