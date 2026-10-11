@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:in_app_update/in_app_update.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/habit_provider.dart';
 import 'providers/theme_provider.dart';
@@ -55,6 +56,27 @@ class _MainShellState extends State<_MainShell> {
   int _currentIndex = 0;
   final PageController _pageController = PageController();
 
+  @override
+  void initState() {
+    super.initState();
+    _checkForInAppUpdate();
+  }
+
+  /// Automatically checks for immediate updates from Google Play on app launch.
+  Future<void> _checkForInAppUpdate() async {
+    try {
+      final updateInfo = await InAppUpdate.checkForUpdate();
+      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
+        if (updateInfo.immediateUpdateAllowed) {
+          await InAppUpdate.performImmediateUpdate();
+        }
+      }
+    } catch (e) {
+      // Gracefully ignore error if offline, sideloaded, or not distributed via Play Store
+      debugPrint('In-app update check skipped: $e');
+    }
+  }
+
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
     _pageController.animateToPage(
@@ -88,4 +110,3 @@ class _MainShellState extends State<_MainShell> {
     );
   }
 }
-

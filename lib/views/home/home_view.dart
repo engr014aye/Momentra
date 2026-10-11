@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:confetti/confetti.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_utils.dart';
 import '../../core/constants/app_constants.dart';
@@ -22,6 +23,7 @@ class _HomeViewState extends State<HomeView>
     with SingleTickerProviderStateMixin {
   late AnimationController _fabController;
   late Animation<double> _fabScale;
+  late ConfettiController _confettiController;
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -34,11 +36,15 @@ class _HomeViewState extends State<HomeView>
     _fabScale = Tween<double>(begin: 1.0, end: 0.92).animate(
       CurvedAnimation(parent: _fabController, curve: Curves.easeInOut),
     );
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
   }
 
   @override
   void dispose() {
     _fabController.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -70,6 +76,114 @@ class _HomeViewState extends State<HomeView>
     );
   }
 
+  /// Triggers celebratory confetti, multi-stage haptic feedback, and an achievement badge banner.
+  void _triggerCelebration() {
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 140), () {
+      HapticFeedback.mediumImpact();
+    });
+    Future.delayed(const Duration(milliseconds: 280), () {
+      HapticFeedback.lightImpact();
+    });
+
+    _confettiController.play();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        duration: const Duration(seconds: 4),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            color: (Theme.of(context).cardTheme.color ??
+                Theme.of(context).colorScheme.surface),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Color(0xFFFFD700),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '100% Routines Crushed! 🎉',
+                      style: TextStyle(
+                        color:
+                            Theme.of(context).textTheme.displayLarge?.color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Daily momentum achieved. Keep this streak alive!',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleHabitToggle(
+      Habit habit, HabitProvider provider, List<Habit> habitsForDate) async {
+    final dateStr = AppUtils.toDateString(_selectedDate);
+    final wasCompleted = provider.isCompletedOn(habit.id, dateStr);
+    final total = habitsForDate.length;
+
+    await provider.toggleCompletion(habit.id, date: _selectedDate);
+
+    // If newly completed and all habits are now 100% done, trigger celebration!
+    if (!wasCompleted && total > 0) {
+      final nowCompleted = habitsForDate
+          .where((h) => provider.isCompletedOn(h.id, dateStr))
+          .length;
+      if (nowCompleted == total) {
+        _triggerCelebration();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<HabitProvider>();
@@ -78,57 +192,78 @@ class _HomeViewState extends State<HomeView>
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        slivers: [
-          _buildAppBar(provider),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: WeekTimeline(
-                selectedDate: _selectedDate,
-                onDateSelected: _onDateSelected,
-              ),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              child: _DailyCompletionCard(
-                provider: provider,
-                selectedDate: _selectedDate,
-              ),
-            ),
-          ),
-          if (habitsForDate.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: _EmptyState(onAdd: _openEditor),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final habit = habitsForDate[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: HabitCard(
-                        habit: habit,
-                        dateString: selectedDateStr,
-                        onTap: () => _openEditor(habit: habit),
-                        onToggle: () => provider.toggleCompletion(
-                            habit.id, date: _selectedDate),
-                      ),
-                    );
-                  },
-                  childCount: habitsForDate.length,
+            slivers: [
+              _buildAppBar(provider),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: WeekTimeline(
+                    selectedDate: _selectedDate,
+                    onDateSelected: _onDateSelected,
+                  ),
                 ),
               ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  child: _DailyCompletionCard(
+                    provider: provider,
+                    selectedDate: _selectedDate,
+                  ),
+                ),
+              ),
+              if (habitsForDate.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _EmptyState(onAdd: _openEditor),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final habit = habitsForDate[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: HabitCard(
+                            habit: habit,
+                            dateString: selectedDateStr,
+                            onTap: () => _openEditor(habit: habit),
+                            onToggle: () => _handleHabitToggle(
+                                habit, provider, habitsForDate),
+                          ),
+                        );
+                      },
+                      childCount: habitsForDate.length,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 28,
+              gravity: 0.25,
+              colors: const [
+                AppTheme.primary,
+                AppTheme.emeraldDark,
+                AppTheme.emeraldLight,
+                Color(0xFFFFD700), // Gold
+                Colors.white,
+              ],
             ),
+          ),
         ],
       ),
       floatingActionButton: _AnimatedFab(
@@ -203,9 +338,11 @@ class _DailyCompletionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: (Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface),
+        color: (Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).dividerTheme.color!, width: 1),
+        border: Border.all(
+            color: Theme.of(context).dividerTheme.color!, width: 1),
       ),
       child: Row(
         children: [
@@ -214,7 +351,7 @@ class _DailyCompletionCard extends StatelessWidget {
             size: 72,
             strokeWidth: 7,
           ),
-          SizedBox(width: 20),
+          const SizedBox(width: 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +362,7 @@ class _DailyCompletionCard extends StatelessWidget {
                         color: Theme.of(context).textTheme.displayLarge!.color!,
                       ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   ratio == 1.0 && total > 0
                       ? '🎉 All done for the day!'
@@ -236,13 +373,14 @@ class _DailyCompletionCard extends StatelessWidget {
                               : 'Start building momentum',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: ratio,
                     backgroundColor: Theme.of(context).dividerTheme.color!,
-                    valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                    valueColor: AlwaysStoppedAnimation(
+                        Theme.of(context).colorScheme.primary),
                     minHeight: 4,
                   ),
                 ),
@@ -273,31 +411,35 @@ class _EmptyState extends StatelessWidget {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: (Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface),
+                color: (Theme.of(context).cardTheme.color ??
+                    Theme.of(context).colorScheme.surface),
                 shape: BoxShape.circle,
-                border: Border.all(color: Theme.of(context).dividerTheme.color!),
+                border:
+                    Border.all(color: Theme.of(context).dividerTheme.color!),
               ),
               child: Icon(Icons.add_task_rounded,
                   color: Theme.of(context).colorScheme.primary, size: 40),
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             Text(
               'No habits for this day',
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall
-                  ?.copyWith(color: Theme.of(context).textTheme.displayLarge!.color!),
+                  ?.copyWith(
+                      color:
+                          Theme.of(context).textTheme.displayLarge!.color!),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Tap the + button to create your first habit and start building your routine.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            SizedBox(height: 28),
+            const SizedBox(height: 28),
             FilledButton.icon(
               onPressed: onAdd,
-              icon: Icon(Icons.add_rounded),
+              icon: const Icon(Icons.add_rounded),
               label: const Text('Add Habit'),
               style: FilledButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
@@ -347,20 +489,18 @@ class _AnimatedFab extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: Icon(Icons.add_rounded,
-              color: Colors.black, size: 30),
+          child: const Icon(Icons.add_rounded, color: Colors.black, size: 30),
         ),
       ),
     );
   }
 }
-
-
-
-

@@ -15,6 +15,10 @@
 -keepattributes Signature
 -keepattributes SourceFile,LineNumberTable
 
-# Ignore missing Play Core classes referenced by Flutter's deferred components
+# Google Play Core & In-App Update
 -dontwarn com.google.android.play.core.**
 -dontwarn io.flutter.embedding.engine.deferredcomponents.**
+-keep class com.google.android.play.core.appupdate.** { *; }
+-keep class com.google.android.play.core.install.** { *; }
+-keep class com.google.android.play.core.common.** { *; }
+-keep class de.ffuf.in_app_update.** { *; }

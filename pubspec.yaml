@@ -1,7 +1,7 @@
 name: momentra
 description: Momentra – Build unbreakable routines with offline-first habit tracking.
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,6 +19,8 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_staggered_animations: ^1.1.1
   url_launcher: ^6.3.3
+  in_app_update: ^5.0.0
+  confetti: ^0.8.0
 
 dev_dependencies:
   flutter_test:
